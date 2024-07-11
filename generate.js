@@ -24,11 +24,10 @@ const routes = staticRoutes.concat(dynamicRoutes).map((route) => {
     regex = `^${basePath || ""}${regex.slice(1)}`;
   }
 
-  // Добавляем редирект для страниц со слэшем на конце
   let redirectRule = "";
   if (config.trailingSlash) {
     redirectRule = `
-    if ($request_uri ~ ^(.+)/$) {
+    if ($request_uri ~* "(.*)/$") {
       return 301 $1;
     }
     `;
@@ -36,8 +35,8 @@ const routes = staticRoutes.concat(dynamicRoutes).map((route) => {
 
   return `
 location ~ ${regex} {
-    try_files ${page}.html /index.html;
     ${redirectRule}
+    try_files ${page}.html /index.html;
 }`;
 });
 
