@@ -11,6 +11,16 @@ const { basePath, dynamicRoutes, staticRoutes } = manifest;
 const requiredServerFiles = "./.next/required-server-files.json";
 const { config } = JSON.parse(readFileSync(requiredServerFiles, "utf-8"));
 
+function createRedirects() {
+  return `
+# Redirect URLs with trailing slashes to the same URL without trailing slash
+if ($request_uri ~ ^(.*)/+$) {
+    return 301 $scheme://$host$1;
+}`;
+}
+
+const redirectRules = createRedirects();
+
 const routes = staticRoutes.concat(dynamicRoutes).map((route) => {
   let { page, regex } = route;
 
@@ -24,22 +34,17 @@ const routes = staticRoutes.concat(dynamicRoutes).map((route) => {
     regex = `^${basePath || ""}${regex.slice(1)}`;
   }
 
-  let redirectRule = "";
-  if (config.trailingSlash) {
-    redirectRule = `
-    if ($request_uri ~* "(.*)/$") {
-      return 301 $1;
-    }
-    `;
-  }
-
   return `
 location ~ ${regex} {
-    ${redirectRule}
     try_files ${page}.html /index.html;
 }`;
 });
+const nginxConfig = `
+${redirectRules}
 
-writeFileSync("./next-routes.conf", routes.join("\n"));
+${routes.join("\n")}
+`;
+
+writeFileSync("./next-routes.conf", nginxConfig);
 
 console.log(`Nginx routes configuration written to ${cwd()}/next-routes.conf`);
