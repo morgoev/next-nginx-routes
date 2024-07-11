@@ -11,40 +11,39 @@ const { basePath, dynamicRoutes, staticRoutes } = manifest;
 const requiredServerFiles = "./.next/required-server-files.json";
 const { config } = JSON.parse(readFileSync(requiredServerFiles, "utf-8"));
 
-function createRedirects() {
-  return `
-# Redirect URLs with trailing slashes to the same URL without trailing slash
-if ($request_uri ~ ^(.*)/+$) {
+function generateNginxConfig() {
+  let nginxConfig = "";
+
+  nginxConfig += `
+# Redirect URLs with trailing slashes to non-trailing slash URLs
+if ($request_uri ~ ^(.+)/+$) {
     return 301 $scheme://$host$1;
-}`;
 }
+`;
+  const routes = staticRoutes.concat(dynamicRoutes).map((route) => {
+    let { page, regex } = route;
 
-const redirectRules = createRedirects();
-
-const routes = staticRoutes.concat(dynamicRoutes).map((route) => {
-  let { page, regex } = route;
-
-  if (route.page === "/") {
-    page = "/index";
-    regex = basePath ? `^${basePath}${regex.slice(2)}` : regex;
-  } else {
-    if (config.trailingSlash) {
-      page = `${route.page}/index`;
+    if (route.page === "/") {
+      page = "/index";
+      regex = basePath ? `^${basePath}${regex.slice(2)}` : regex;
+    } else {
+      if (config.trailingSlash) {
+        page = `${route.page}/index`;
+      }
+      regex = `^${basePath || ""}${regex.slice(1)}`;
     }
-    regex = `^${basePath || ""}${regex.slice(1)}`;
-  }
 
-  return `
+    return `
 location ~ ${regex} {
     try_files ${page}.html /index.html;
 }`;
-});
-const nginxConfig = `
-${redirectRules}
+  });
 
-${routes.join("\n")}
-`;
+  nginxConfig += routes.join("\n");
 
-writeFileSync("./next-routes.conf", nginxConfig);
+  return nginxConfig;
+}
+
+writeFileSync("./next-routes.conf", generateNginxConfig());
 
 console.log(`Nginx routes configuration written to ${cwd()}/next-routes.conf`);
